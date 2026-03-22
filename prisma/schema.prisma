@@ -1,0 +1,142 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  username      String    @unique
+  password      String
+  avatar        String?
+  totalScore    Int       @default(0)
+  gamesPlayed   Int       @default(0)
+  gamesWon      Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  lobbyCreations  Lobby[]       @relation("LobbyCreator")
+  lobbyMemberships LobbyMember[]
+  gameSessions    PlayerGameSession[]
+  leaderboardEntry LeaderboardEntry?
+}
+
+model Lobby {
+  id              String      @id @default(cuid())
+  code            String      @unique
+  name            String?
+  creatorId       String
+  creator         User        @relation("LobbyCreator", fields: [creatorId], references: [id])
+  maxPlayers      Int         @default(6)
+  totalRounds     Int         @default(3)
+  letterMode      String      @default("random") // "random" or "manual"
+  currentLetter   String?
+  status          String      @default("waiting") // "waiting", "playing", "finished"
+  currentRound    Int         @default(0)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  
+  members       LobbyMember[]
+  games         Game[]
+}
+
+model LobbyMember {
+  id        String   @id @default(cuid())
+  lobbyId   String
+  lobby     Lobby    @relation(fields: [lobbyId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  isReady   Boolean  @default(false)
+  joinedAt  DateTime @default(now())
+  
+  @@unique([lobbyId, userId])
+}
+
+model Game {
+  id            String   @id @default(cuid())
+  lobbyId       String
+  lobby         Lobby    @relation(fields: [lobbyId], references: [id], onDelete: Cascade)
+  status        String   @default("waiting") // "waiting", "playing", "countdown", "validation", "round_end", "finished"
+  currentRound  Int      @default(1)
+  totalRounds   Int      @default(3)
+  currentLetter String?
+  timerEndsAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  rounds        Round[]
+  playerSessions PlayerGameSession[]
+}
+
+model PlayerGameSession {
+  id          String   @id @default(cuid())
+  gameId      String
+  game        Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  totalScore  Int      @default(0)
+  finishedAt  DateTime?
+  createdAt   DateTime @default(now())
+  
+  answers     Answer[]
+  
+  @@unique([gameId, userId])
+}
+
+model Round {
+  id            String   @id @default(cuid())
+  gameId        String
+  game          Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  roundNumber   Int
+  letter        String
+  status        String   @default("playing") // "playing", "countdown", "validation", "finished"
+  timerEndsAt   DateTime?
+  createdAt     DateTime @default(now())
+  
+  answers       Answer[]
+}
+
+model Answer {
+  id              String   @id @default(cuid())
+  roundId         String
+  round           Round    @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  playerSessionId String
+  playerSession   PlayerGameSession @relation(fields: [playerSessionId], references: [id], onDelete: Cascade)
+  category        String   // "girls", "boys", "flowers", "fruits", "animals", "cities"
+  answer          String
+  points          Int      @default(0)
+  isValid         Boolean?
+  votesValid      Int      @default(0)
+  votesInvalid    Int      @default(0)
+  isDuplicate     Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  
+  votes           Vote[]
+}
+
+model Vote {
+  id        String   @id @default(cuid())
+  answerId  String
+  answer    Answer   @relation(fields: [answerId], references: [id], onDelete: Cascade)
+  voterId   String
+  isValid   Boolean
+  createdAt DateTime @default(now())
+  
+  @@unique([answerId, voterId])
+}
+
+model LeaderboardEntry {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+  rank      Int?
+  avgScore  Float    @default(0)
+  updatedAt DateTime @updatedAt
+}
